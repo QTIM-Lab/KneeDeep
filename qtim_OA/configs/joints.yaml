@@ -1,0 +1,10 @@
+dataset: MOST
+model: joint_unet
+data_root: E:\MOST
+output_dir: E:\MOST\Training
+overwrite_data: false
+resize:
+  height: 480
+  width: 576
+save_name: joint_segmentation
+epochs: 100
