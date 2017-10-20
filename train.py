@@ -1,18 +1,9 @@
-#!/usr/bin/python3
-
-import os
-os.environ['KERAS_BACKEND'] = 'tensorflow'
-os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-
-import keras
-keras.backend.set_image_dim_ordering('tf')
 import matplotlib  # set matplotlib backend
 matplotlib.use('Agg')
 
 import sys
 import yaml
-from os.path import isfile, join, isdir
+import isfile, join, isdir
 from qtim_OA.data import MOSTRadio
 from qtim_OA.models import JointSegmenter
 

@@ -8,3 +8,4 @@ resize:
   width: 576
 save_name: joint_segmentation
 epochs: 100
+backend: tensorflow

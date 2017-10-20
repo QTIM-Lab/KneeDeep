@@ -14,9 +14,15 @@ class JointSegmenter:
 
     def __init__(self, config, arch='unet'):
 
-        input_shape = (config['resize']['height'], config['resize']['width'], 1)
+        if config['backend'] == 'theano':
+            input_shape = (1, config['resize']['height'], config['resize']['width'])
+            order = 'channels_first'
+        else:
+            input_shape = (config['resize']['height'], config['resize']['width'], 1)
+            order = 'channels_last'
+
         self.epochs = config['epochs']
-        self.model = architectures[arch](input_shape=input_shape)
+        self.model = architectures[arch](input_shape=input_shape, order=order)
         self.out_dir = config['output_dir']
 
     def train(self, h5_file):
@@ -35,65 +41,67 @@ class JointClassifier:
         pass
 
 
-def joint_unet(input_shape=(480, 576, 1), filter_divisor=1, pool_size=(2, 2), activation='relu'):
+def joint_unet(input_shape=(480, 576, 1), filter_divisor=1, pool_size=(2, 2), activation='relu', order='channels_last'):
+
+    concat_axis = -1 if order == 'channels_last' else 1
 
     inputs = Input(shape=input_shape)
 
-    conv1 = Conv2D(int(32/filter_divisor), (3, 3), activation=activation, data_format='channels_last',
+    conv1 = Conv2D(int(32/filter_divisor), (3, 3), activation=activation, data_format=order,
                    padding='same')(inputs)
-    conv1 = Conv2D(int(64/filter_divisor), (3, 3), activation=activation, data_format='channels_last',
+    conv1 = Conv2D(int(64/filter_divisor), (3, 3), activation=activation, data_format=order,
                    padding='same')(conv1)
     conv1 = BatchNormalization()(conv1)
-    pool1 = MaxPooling2D(pool_size=pool_size, data_format='channels_last',)(conv1)
+    pool1 = MaxPooling2D(pool_size=pool_size, data_format=order,)(conv1)
 
-    conv2 = Conv2D(int(64/filter_divisor), (3, 3), activation=activation, data_format='channels_last',
+    conv2 = Conv2D(int(64/filter_divisor), (3, 3), activation=activation, data_format=order,
                    padding='same')(pool1)
-    conv2 = Conv2D(int(128/filter_divisor), (3, 3), activation=activation, data_format='channels_last',
+    conv2 = Conv2D(int(128/filter_divisor), (3, 3), activation=activation, data_format=order,
                    padding='same')(conv2)
     conv2 = BatchNormalization()(conv2)
-    pool2 = MaxPooling2D(pool_size=pool_size, data_format='channels_last')(conv2)
+    pool2 = MaxPooling2D(pool_size=pool_size, data_format=order)(conv2)
 
-    conv3 = Conv2D(int(128/filter_divisor), (3, 3), activation=activation, data_format='channels_last',
+    conv3 = Conv2D(int(128/filter_divisor), (3, 3), activation=activation, data_format=order,
                    padding='same')(pool2)
-    conv3 = Conv2D(int(256/filter_divisor), (3, 3), activation=activation, data_format='channels_last',
+    conv3 = Conv2D(int(256/filter_divisor), (3, 3), activation=activation, data_format=order,
                    padding='same')(conv3)
     conv3 = BatchNormalization()(conv3)
-    pool3 = MaxPooling2D(pool_size=pool_size, data_format='channels_last')(conv3)
+    pool3 = MaxPooling2D(pool_size=pool_size, data_format=order)(conv3)
 
-    conv4 = Conv2D(int(256/filter_divisor), (3, 3), activation=activation,data_format='channels_last',
+    conv4 = Conv2D(int(256/filter_divisor), (3, 3), activation=activation,data_format=order,
                    padding='same')(pool3)
-    conv4 = Conv2D(int(512/filter_divisor), (3, 3), activation=activation,data_format='channels_last',
+    conv4 = Conv2D(int(512/filter_divisor), (3, 3), activation=activation,data_format=order,
                    padding='same')(conv4)
     conv4 = BatchNormalization()(conv4)
 
-    up5 = UpSampling2D(data_format='channels_last')(conv4)
-    up5 = concatenate([up5, conv3], axis=-1)
+    up5 = UpSampling2D(data_format=order)(conv4)
+    up5 = concatenate([up5, conv3], axis=concat_axis)
 
-    conv5 = Conv2D(int(256/filter_divisor), (3, 3), activation=activation, data_format='channels_last',
+    conv5 = Conv2D(int(256/filter_divisor), (3, 3), activation=activation, data_format=order,
                    padding='same')(up5)
-    conv5 = Conv2D(int(256/filter_divisor), (3, 3), activation=activation, data_format='channels_last',
+    conv5 = Conv2D(int(256/filter_divisor), (3, 3), activation=activation, data_format=order,
                    padding='same')(conv5)
     conv5 = BatchNormalization()(conv5)
 
-    up6 = UpSampling2D(data_format='channels_last')(conv5)
-    up6 = concatenate([up6, conv2], axis=-1)
+    up6 = UpSampling2D(data_format=order)(conv5)
+    up6 = concatenate([up6, conv2], axis=concat_axis)
 
-    conv6 = Conv2D(int(128/filter_divisor), (3, 3), activation=activation, data_format='channels_last',
+    conv6 = Conv2D(int(128/filter_divisor), (3, 3), activation=activation, data_format=order,
                    padding='same')(up6)
-    conv6 = Conv2D(int(128/filter_divisor), (3, 3), activation=activation, data_format='channels_last',
+    conv6 = Conv2D(int(128/filter_divisor), (3, 3), activation=activation, data_format=order,
                    padding='same')(conv6)
     conv6 = BatchNormalization()(conv6)
 
-    up7 = UpSampling2D(data_format='channels_last')(conv6)
-    up7 = concatenate([up7, conv1], axis=-1)
+    up7 = UpSampling2D(data_format=order)(conv6)
+    up7 = concatenate([up7, conv1], axis=concat_axis)
 
-    conv7 = Conv2D(int(64/filter_divisor), (3, 3), activation=activation, data_format='channels_last',
+    conv7 = Conv2D(int(64/filter_divisor), (3, 3), activation=activation, data_format=order,
                    padding='same')(up7)
-    conv7 = Conv2D(int(64/filter_divisor), (3, 3), activation=activation, data_format='channels_last',
+    conv7 = Conv2D(int(64/filter_divisor), (3, 3), activation=activation, data_format=order,
                    padding='same')(conv7)
     conv7 = BatchNormalization()(conv7)
 
-    conv8 = Conv2D(1, (1, 1), data_format='channels_last')(conv7)
+    conv8 = Conv2D(1, (1, 1), data_format=order)(conv7)
 
     act = Activation('sigmoid')(conv8)
     model = Model(inputs=inputs, outputs=act)

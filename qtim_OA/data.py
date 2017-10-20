@@ -120,7 +120,7 @@ class MOSTRadio(Dataset):
                 img_arr_pp = np.expand_dims(img_arr_pp, 2)
                 label_arr_pp = np.expand_dims(label_arr_pp, 2)
 
-                img_storage.append(img_arr_pp[None])  # this syntax prepends a singlton dimension to the image
+                img_storage.append(img_arr_pp[None])  # this syntax prepends a singleton dimension to the image
                 label_storage.append(label_arr_pp[None])
 
         h5file.close()
