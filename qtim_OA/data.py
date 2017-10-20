@@ -23,7 +23,7 @@ class Dataset(object):
 
 class MOSTRadio(Dataset):
 
-    def __init__(self, data_root, output_dir):
+    def __init__(self, data_root, output_dir, out_name):
 
         super(MOSTRadio, self).__init__(data_root, output_dir)
         self.search_pattern = join(data_root, 'XR', '*', '*', '*', 'PA*', '*')
@@ -36,6 +36,8 @@ class MOSTRadio(Dataset):
         self.random_state = 101
         self.meta_data = pd.DataFrame(data=meta_data).set_index('img_path')
         self.train, self.validation, self.test = None, None, None
+
+        self.out_name = out_name
 
     def get_meta_data(self, img_path):
 
@@ -83,8 +85,6 @@ class MOSTRadio(Dataset):
     def generate_hdf5_file(self, config):
 
         # Open HDF5 file
-        out_name = join(config['output_dir'], config['save_name']) + '.h5'
-
         if isfile(out_name) and not config['overwrite_data']:
             return out_name
 
