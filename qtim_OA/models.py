@@ -105,7 +105,7 @@ def joint_unet(input_shape=(480, 576, 1), filter_divisor=1, pool_size=(2, 2), ac
 
     act = Activation('sigmoid')(conv8)
     model = Model(inputs=inputs, outputs=act)
-    model.compile(optimizer=Nadam(), loss=dice_coef, metrics=[dice_coef])
+    model.compile(optimizer=Nadam(), loss=dice_coef_loss, metrics=[dice_coef])
 
     return model
 
@@ -117,5 +117,7 @@ def dice_coef(y_true, y_pred, smooth=1.):
     intersection = K.sum(y_true_f * y_pred_f)
     return (2. * intersection + smooth) / (K.sum(y_true_f) + K.sum(y_pred_f) + smooth)
 
+def dice_coef_loss(y_true, y_pred):
+    return (1 - dice_coef(y_true, y_pred))
 
 architectures = {'unet': joint_unet}
