@@ -36,7 +36,7 @@ class JointSegmenter:
         data = tables.open_file(h5_file, mode="r").root
         train_data, val_data = data.train, data.val
 
-        checkpoint_cb = ModelCheckpoint(join(self.out_dir, 'weights.{epoch:02d}-{val_loss:.2f}.h5'))
+        checkpoint_cb = ModelCheckpoint(join(self.out_dir, 'weights_epoch{epoch:02d}_loss{val_loss:.2f}.h5'))
         segment_cb = JointSegmentProgressCallback(np.asarray(np.asarray(val_data.images)), self.callback_dir)
 
         history = self.model.fit(np.asarray(train_data.images), np.asarray(train_data.labels),
@@ -62,10 +62,12 @@ class JointSegmentProgressCallback(Callback):
         self.out_dir = out_dir
         self.no_samples = no_samples
 
+        print self.validation_data
+
     def on_epoch_end(self, epoch, logs={}):
 
         output = self.model.predict_on_batch(self.validation_data[:self.no_samples, ...])
-        for i in range(output.shape[0]):
+        for i in range(0, output.shape[0]):
 
             arr = output[i, ...]
             Image.fromarray(arr).save(join(self.out_dir, 'epoch{}_img_{}.png'.format(epoch, i)))
