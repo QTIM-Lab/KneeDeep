@@ -1,5 +1,11 @@
-from os.path import split
+from os import makedirs
+from os.path import split, isdir
 
+
+def makedir_if_not_exists(dir):
+
+    if not isdir(dir):
+        makedirs(dir)
 
 
 def most_metadata(img_path):
