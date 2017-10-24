@@ -5,9 +5,13 @@ from keras.layers.normalization import BatchNormalization
 from keras.layers.pooling import MaxPooling2D
 from keras.models import Model
 from keras.optimizers import Nadam
+from keras.callbacks import Callback, ModelCheckpoint
 from os.path import join
+from .io.paths import makedir_if_not_exists
 import tables
 import numpy as np
+import pandas as pd
+from PIL import Image
 
 
 class JointSegmenter:
@@ -24,14 +28,22 @@ class JointSegmenter:
         self.epochs = config['epochs']
         self.model = architectures[arch](input_shape=input_shape, order=order)
         self.out_dir = config['output_dir']
+        self.callback_dir = join(self.out_dir, 'progress')
+        makedir_if_not_exists(self.callback_dir)
 
     def train(self, h5_file):
 
-        data = tables.open_file(h5_file, mode="r").root.train
-        img_data = data.images
-        label_data = data.labels
+        data = tables.open_file(h5_file, mode="r").root
+        train_data, val_data = data.train, data.val
 
-        self.model.fit(np.asarray(img_data), np.asarray(label_data), epochs=self.epochs, batch_size=16)
+        checkpoint_cb = ModelCheckpoint(join(self.out_dir, 'weights.{epoch:02d}-{val_loss:.2f}.h5'))
+        segment_cb = JointSegmentProgressCallback(np.asarray(np.asarray(val_data.images)), self.callback_dir)
+
+        history = self.model.fit(np.asarray(train_data.images), np.asarray(train_data.labels),
+                                 validation_data=[np.asarray(val_data.images), np.asarray(val_data.labels)],
+                                 epochs=self.epochs, batch_size=16, callbacks=[checkpoint_cb, segment_cb])
+
+        pd.DataFrame(history.history).to_csv(join(self.out_dir, 'history.csv'))
         self.model.save(join(self.out_dir, 'final_model.h5'))
 
 
@@ -39,6 +51,24 @@ class JointClassifier:
 
     def __init__(self):
         pass
+
+
+class JointSegmentProgressCallback(Callback):
+
+    def __init__(self, validation_data, out_dir, no_samples=10):
+
+        super(JointSegmentProgressCallback, self).__init__()
+        self.validation_data = validation_data
+        self.out_dir = out_dir
+        self.no_samples = no_samples
+
+    def on_epoch_end(self, epoch, logs={}):
+
+        output = self.model.predict_on_batch(self.validation_data[:self.no_samples, ...])
+        for i in range(output.shape[0]):
+
+            arr = output[i, ...]
+            Image.fromarray(arr).save(join(self.out_dir, 'epoch{}_img_{}.png'.format(epoch, i)))
 
 
 def joint_unet(input_shape=(480, 576, 1), filter_divisor=1, pool_size=(2, 2), activation='relu', order='channels_last'):

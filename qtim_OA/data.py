@@ -85,10 +85,10 @@ class MOSTRadio(Dataset):
     def generate_hdf5_file(self, config):
 
         # Open HDF5 file
-        if isfile(out_name) and not config['overwrite_data']:
-            return out_name
+        if isfile(self.out_name) and not config['overwrite_data']:
+            return self.out_name
 
-        h5file = tables.open_file(out_name, mode="w", title=out_name)
+        h5file = tables.open_file(self.out_name, mode="w", title=self.out_name)
         img_dtype = tables.Float16Atom()
         print("Generating HDF5 file")
 
@@ -124,4 +124,4 @@ class MOSTRadio(Dataset):
                 label_storage.append(label_arr_pp[None])
 
         h5file.close()
-        return out_name
+        return self.out_name
