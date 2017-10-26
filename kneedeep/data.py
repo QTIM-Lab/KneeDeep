@@ -7,7 +7,7 @@ import dicom
 from scipy.misc import imread, imresize
 import tables
 import numpy as np
-from .preprocessing import normalize
+from .processing import normalize
 
 
 class Dataset(object):

@@ -1,5 +1,5 @@
 import sys
-from qtim_OA.ui.annotator import Annotator
+from kneedeep.ui.annotator import Annotator
 
 if __name__ == '__main__':
 

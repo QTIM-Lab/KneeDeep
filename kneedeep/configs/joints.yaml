@@ -9,3 +9,4 @@ resize:
 save_name: joint_segmentation
 epochs: 100
 backend: tensorflow
+preprocessing: clahe
