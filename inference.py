@@ -1,9 +1,9 @@
 from kneedeep.models import KneeLocalizer
 from kneedeep.io.paths import makedir_if_not_exists
-from os.path import join, isfile, splitext
+from os.path import join, isfile, isdir, splitext
 import yaml
 import pandas as pd
-import numpy as np
+from glob import glob
 
 
 def localize_knees(config, images):
@@ -11,6 +11,8 @@ def localize_knees(config, images):
     if isfile(images) and splitext(images)[1] == '.csv':
         df = pd.DataFrame.from_csv(images)
         img_list = list(df.index)
+    elif isdir(images):
+        img_list = glob(join(images, '*'))
     else:
         raise IOError("Unable to load data from '{}'".format(images))
 

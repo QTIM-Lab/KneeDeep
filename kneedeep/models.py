@@ -70,7 +70,7 @@ class KneeLocalizer:
         # TODO Facility to fine-tune an existing network
         raise NotImplementedError('Function not yet implemented!')
 
-    def predict(self, data, mode='crop', resize_output=False, save_dir=None):
+    def predict(self, data, mode='crop', resize_output=False, save_dir=None, preprocess=False):
         """
         Function to
         :param data: a single image path or list of image paths to segment
