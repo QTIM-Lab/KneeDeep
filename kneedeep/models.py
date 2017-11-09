@@ -4,8 +4,9 @@ from keras.layers.convolutional import Conv2D
 from keras.layers.normalization import BatchNormalization
 from keras.layers.pooling import MaxPooling2D
 from keras.models import Model, load_model
-from keras.optimizers import Nadam
 from keras.callbacks import Callback, ModelCheckpoint
+from kneedeep.data import load
+from kneedeep.processing import apply_to_batch
 from os.path import join
 from .io.paths import makedir_if_not_exists
 from .io.image import save_figure
@@ -16,11 +17,14 @@ import pandas as pd
 from collections import OrderedDict
 from PIL import Image
 import seaborn as sns
+from keras_diagram import ascii
 
 
 class KneeLocalizer:
 
     def __init__(self, config, arch='unet', pretrained_model=None):
+
+        self.config = config
 
         if config['backend'] == 'theano':
             input_shape = (1, config['resize']['height'], config['resize']['width'])
@@ -36,6 +40,8 @@ class KneeLocalizer:
             self.model = architectures[arch](input_shape=input_shape, order=order, optimizer=optimizer)
         else:
             self.model = load_model(pretrained_model, custom_objects={'dice_coef': dice_coef})
+
+        print ascii(self.model)
 
         self.out_dir = config['output_dir']
         self.callback_dir = join(self.out_dir, 'progress')
@@ -64,7 +70,7 @@ class KneeLocalizer:
         # TODO Facility to fine-tune an existing network
         raise NotImplementedError('Function not yet implemented!')
 
-    def predict(self, data, mode='crop', resize_output=False, save=None):
+    def predict(self, data, mode='crop', resize_output=False, save_dir=None):
         """
         Function to
         :param data: a single image path or list of image paths to segment
@@ -75,14 +81,35 @@ class KneeLocalizer:
         :return: the output of the CNN according the mode specified
         """
 
-        # TODO Resize the image(s) according to the config to CNN resolution
-        # TODO Normalize the images(s) according to the config file (e.g. CLAHE)
-        # TODO Get prediction(s)
-        # TODO Process the output(s) according to the mode/resize options
-        # TODO Save the results to a folder
-        # TODO Return the results
+        # Pre-processing
+        preprocessed, original_shapes = load(data, self.config)
+        if save_dir:
+            np.savez(join(save_dir, 'kneedeep_preprocessed'), preprocessed)
 
-        raise NotImplementedError('Function not yet implemented!')
+        # Inference
+        predictions = self.model.predict()
+        if resize_output:
+            predictions = apply_to_batch([predictions, original_shapes], 'resize')
+
+        if mode.lower()[0] == 'p':
+            if save_dir:
+                np.savez(join(save_dir, 'kneedeep_predictions'), predictions)
+            return predictions
+
+        # Post-processing
+        bboxes = apply_to_batch([predictions], 'bbox')
+
+        if mode.lower()[0] == 'b':
+            if save_dir:
+                np.savez(join(save_dir, 'kneedeep_bounding_boxes'), bboxes)
+            return bboxes
+
+        if mode.lower()[0] == 'c':
+            cropped = apply_to_batch([predictions, bboxes], 'bbox')
+            if save_dir:
+                np.savez(join(save_dir, 'kneedeep_cropped'), cropped)
+            return cropped
+
 
     def evaluate(self, h5_file, eval_dir):
         """

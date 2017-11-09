@@ -36,7 +36,6 @@ class MOSTRadio(Dataset):
         self.random_state = 101
         self.meta_data = pd.DataFrame(data=meta_data).set_index('img_path')
         self.train, self.validation, self.test = None, None, None
-
         self.out_name = out_name
 
     def get_meta_data(self, img_path):
@@ -125,3 +124,31 @@ class MOSTRadio(Dataset):
 
         h5file.close()
         return self.out_name
+
+
+def load(img_paths, config, label_suffix=None):
+
+    img_list = []
+    original_shapes = []
+    new_size = (config['resize']['height'], config['resize']['width'])
+
+    for img_path in img_paths:
+
+        print "Loading {}".format(img_path)
+
+        if label_suffix is None:
+            img_arr = dicom.read_file(img_path, force=True).pixel_array
+            original_shapes.append(img_arr.shape)
+            img_arr_resized = imresize(img_arr, new_size, interp='bilinear')
+            img_arr_pp = normalize(img_arr_resized, method=config['preprocessing']).astype(np.float16)
+            img_arr_pp = np.expand_dims(img_arr_pp, 2)
+            img_list.append(img_arr_pp)  # this syntax prepends a singleton dimension to the image
+        else:
+            label_arr = imread(img_path + label_suffix)
+            original_shapes.append(label_arr.shape)
+            label_arr_resized = imresize(label_arr, new_size, interp='nearest')
+            label_arr_pp = (label_arr_resized / 255.).astype(np.float16)
+            label_arr_pp = np.expand_dims(label_arr_pp, 2)
+            img_list.append(label_arr_pp)
+
+    return np.asarray(img_list), original_shapes

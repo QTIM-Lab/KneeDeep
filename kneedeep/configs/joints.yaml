@@ -1,7 +1,8 @@
 dataset: MOST
 model: joint_unet
-data_root: /root/data/MOST
-output_dir: /root/data/Training
+data_root: E:\MOST
+output_dir: C:\Users\James\Documents\projects\KneeOA\Training\2nd_run
+inference_dir: C:\Users\James\Documents\projects\KneeOA\Training\2nd_run\inference
 overwrite_data: false
 resize:
   height: 240
@@ -10,3 +11,4 @@ save_name: joint_segmentation
 epochs: 100
 backend: tensorflow
 preprocessing: clahe
+optimizer: nadam
