@@ -4,7 +4,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import matplotlib.image as mpimg
+from matplotlib.patches import Rectangle
 from matplotlib.animation import FuncAnimation
+from itertools import cycle
 
 
 def save_figure(out_name, extensions=('.png', '.svg')):
@@ -27,9 +29,19 @@ def save_overlay(background, mask, out_path, alpha=0.4, thresh=None):
     plt.savefig(out_path)
 
 
-def save_bb_overlay(background, bbox, out_path):
+def save_bb_overlay(background, bboxes, out_path):
 
-    pass
+    fig, ax = plt.subplots()
+    ax.imshow(background, cmap='gray')
+
+    colors = cycle(['c', 'm', 'y', 'k', 'b', 'g', 'r',  'w'])
+    for min_row, min_col, max_row, max_col in bboxes:
+        col = colors.next()
+        rect = Rectangle((min_col, max_row), max_col - min_col, min_row - max_row, color=col, lw=1, fill=False)
+        ax.add_patch(rect)
+
+    plt.axis('off')
+    plt.savefig(out_path, bbox_inches='tight', dpi=300)
 
 
 def progress_collage(pred_dir, out_path, background_images=None, thresh=0.9, alpha=0.5, no_epochs=75, extra_frames=10, no_samples=9, dpi=50):

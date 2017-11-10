@@ -5,8 +5,9 @@ from keras.layers.normalization import BatchNormalization
 from keras.layers.pooling import MaxPooling2D
 from keras.models import Model, load_model
 from keras.callbacks import Callback, ModelCheckpoint
-from kneedeep.data import load
-from kneedeep.processing import apply_to_batch
+from .data import load
+from .processing import apply_to_batch
+from .io.image import save_bb_overlay
 from os.path import join
 from .io.paths import makedir_if_not_exists
 from .io.image import save_figure
@@ -17,7 +18,7 @@ import pandas as pd
 from collections import OrderedDict
 from PIL import Image
 import seaborn as sns
-from keras_diagram import ascii
+from tifffile.tifffile import imsave
 
 
 class KneeLocalizer:
@@ -41,8 +42,6 @@ class KneeLocalizer:
         else:
             self.model = load_model(pretrained_model, custom_objects={'dice_coef': dice_coef})
 
-        print ascii(self.model)
-
         self.out_dir = config['output_dir']
         self.callback_dir = join(self.out_dir, 'progress')
 
@@ -57,7 +56,6 @@ class KneeLocalizer:
         segment_cb = LocalizeKneeCallback(np.asarray(val_data.images), np.asarray(val_data.labels),
                                           self.callback_dir, no_samples=36)
 
-        # TODO CLAHE, verify input + GT correspond, intensity ranges, etc...
         history = self.model.fit(np.asarray(train_data.images), np.asarray(train_data.labels),
                                  validation_data=[np.asarray(val_data.images), np.asarray(val_data.labels)],
                                  epochs=self.epochs, batch_size=16, callbacks=[checkpoint_cb, segment_cb])
@@ -70,46 +68,69 @@ class KneeLocalizer:
         # TODO Facility to fine-tune an existing network
         raise NotImplementedError('Function not yet implemented!')
 
-    def predict(self, data, mode='crop', resize_output=False, save_dir=None, preprocess=False):
+    def predict(self, data, thresh=.5, resize_output=True, save_dir=None):
         """
-        Function to
+        Performs inference on provided data, and optionally resizes/saves output
         :param data: a single image path or list of image paths to segment
-        :param mode: mode of output prediction. 'pred' provides the raw (sigmoid) output, 'bbox' provides the image with
-                     two bounding boxes overlaid, 'crop' returns the cropped regions of the input image
-        :param resize_output: if true, the resulting output will be the same size/resolution as the input data
-        :param save: option to save output as an image, if a valid output folder is specified
-        :return: the output of the CNN according the mode specified
+        :param thresh: threshold to apply to predictions when saved as an image
+        :param resize_output: option to return results at original resolution
+        :param save_dir: folder to save output as .npz
+        :return: the raw output of the CNN
         """
 
-        # Pre-processing
-        preprocessed, original_shapes = load(data, self.config)
-        if save_dir:
-            np.savez(join(save_dir, 'kneedeep_preprocessed'), preprocessed)
+        # Pre-process according to config
+        raw, preprocessed, filenames, original_shapes = load(data, self.config)
 
-        # Inference
-        predictions = self.model.predict()
+        # Run inference
+        print "Running inference..."
+        pred = self.model.predict(preprocessed)
+        pred = np.squeeze(pred, axis=-1)  # drop redundant channels dimension
+
         if resize_output:
-            predictions = apply_to_batch([predictions, original_shapes], 'resize')
+            pred = apply_to_batch([pred, original_shapes], 'resize')
 
-        if mode.lower()[0] == 'p':
-            if save_dir:
-                np.savez(join(save_dir, 'kneedeep_predictions'), predictions)
-            return predictions
+        if save_dir is not None:
+            t = thresh if isinstance(thresh, float) and 0. < thresh < 1. else 0.5
+            for img, filename in zip(pred, filenames):
+                pil_img = Image.fromarray((img > t).astype(np.uint8) * 255)
+                pil_img.save(join(save_dir, filename + '_pred.png'))
 
-        # Post-processing
-        bboxes = apply_to_batch([predictions], 'bbox')
+        return raw, pred, filenames
 
-        if mode.lower()[0] == 'b':
-            if save_dir:
-                np.savez(join(save_dir, 'kneedeep_bounding_boxes'), bboxes)
-            return bboxes
+    def get_bounding_boxes(self, data, no_boxes=2, save_dir=None):
+        """
+        Generates bounding boxes from CNN predictions.
+        :param data:
+        :param no_boxes: maximum number of bounding boxes to find and return
+        :param resize_output: option to return results at original resolution
+        :param save_dir: folder to save bounding boxes and overlays
+        :return: raw CNN predictions and bounding boxes
+        """
 
-        if mode.lower()[0] == 'c':
-            cropped = apply_to_batch([predictions, bboxes], 'bbox')
-            if save_dir:
-                np.savez(join(save_dir, 'kneedeep_cropped'), cropped)
-            return cropped
+        # Run inference and locate bounding boxes
+        raw, pred, filenames = self.predict(data, resize_output=True, save_dir=save_dir)
+        print "Extracting bounding boxes..."
+        bboxes = apply_to_batch([pred], 'bbox', no_boxes=no_boxes)
 
+        if save_dir is not None:
+            for raw_img, boxes, filename in zip(raw, bboxes, filenames):
+                save_bb_overlay(raw_img, boxes, join(save_dir, filename + '_bbox.png'))
+
+        return raw, pred, filenames, bboxes
+
+    def crop(self, data, no_boxes=2, save_dir=None):
+
+        # Extract bounding boxes and crop data
+        raw, pred, filenames, bboxes = self.get_bounding_boxes(data, no_boxes=no_boxes, save_dir=save_dir)
+
+        cropped = apply_to_batch([raw, bboxes], 'crop')  # crop the raw images
+        print "Saving crop regions..."
+        if save_dir:
+            for crop_boxes, filename in zip(cropped, filenames):
+                for i, region in enumerate(crop_boxes):
+                    imsave(join(save_dir, filename + '_{}.tiff'.format(i)), region)
+
+        return cropped
 
     def evaluate(self, h5_file, eval_dir):
         """

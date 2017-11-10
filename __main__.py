@@ -47,10 +47,10 @@ class KneeDeepCommands(object):
     def localize_knees(self):
 
         parser = ArgumentParser(description='Perform knee joint localization')
-        # TODO add arguments
+        parser.add_argument('-m', '--mode', default='c')
         args = parser.parse_args()
 
-        localize_knees(self.conf_dict, args.images, args.out_dir)
+        localize_knees(self.conf_dict, args.images)
 
 
 def initialize(localizer=None, classifier=None):

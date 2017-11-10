@@ -1,10 +1,11 @@
-from os.path import join, split, splitext, isfile
+from os.path import join, basename, splitext, isfile
 from glob import glob
 import pandas as pd
 from pathlib import PurePath
 from random import shuffle
 import dicom
-from scipy.misc import imread, imresize
+from PIL import Image
+from skimage.transform import resize
 import tables
 import numpy as np
 from .processing import normalize
@@ -108,10 +109,10 @@ class MOSTRadio(Dataset):
 
                 # Load image and labels
                 img_arr = dicom.read_file(img_path, force=True).pixel_array
-                label_arr = imread(img_path + self.label_ext)
+                label_arr = np.array(Image.open(img_path + self.label_ext))
 
-                img_arr_resized = imresize(img_arr, new_size, interp='bilinear')
-                label_arr_resized = imresize(label_arr, new_size, interp='nearest')
+                img_arr_resized = resize(img_arr, new_size)
+                label_arr_resized = resize(label_arr, new_size)
 
                 img_arr_pp = normalize(img_arr_resized).astype(np.float16)
                 label_arr_pp = (label_arr_resized / 255.).astype(np.float16)
@@ -128,27 +129,31 @@ class MOSTRadio(Dataset):
 
 def load(img_paths, config, label_suffix=None):
 
-    img_list = []
-    original_shapes = []
+    raw, preprocessed = [], []
+    img_names, original_shapes = [], []
     new_size = (config['resize']['height'], config['resize']['width'])
 
     for img_path in img_paths:
 
         print "Loading {}".format(img_path)
+        img_names.append(basename(img_path))
 
         if label_suffix is None:
             img_arr = dicom.read_file(img_path, force=True).pixel_array
+            raw.append(img_arr)
             original_shapes.append(img_arr.shape)
-            img_arr_resized = imresize(img_arr, new_size, interp='bilinear')
+            img_arr_resized = resize(img_arr, new_size)
             img_arr_pp = normalize(img_arr_resized, method=config['preprocessing']).astype(np.float16)
             img_arr_pp = np.expand_dims(img_arr_pp, 2)
-            img_list.append(img_arr_pp)  # this syntax prepends a singleton dimension to the image
+            preprocessed.append(img_arr_pp)  # this syntax prepends a singleton dimension to the image
         else:
-            label_arr = imread(img_path + label_suffix)
+            label_arr = np.array(Image.open(img_path + label_suffix))
+            raw.append(label_arr)
             original_shapes.append(label_arr.shape)
-            label_arr_resized = imresize(label_arr, new_size, interp='nearest')
+            label_arr_resized = resize(label_arr, new_size)
             label_arr_pp = (label_arr_resized / 255.).astype(np.float16)
             label_arr_pp = np.expand_dims(label_arr_pp, 2)
-            img_list.append(label_arr_pp)
+            preprocessed.append(label_arr_pp)
 
-    return np.asarray(img_list), original_shapes
+    return np.asarray(raw), np.asarray(preprocessed), img_names, original_shapes
+

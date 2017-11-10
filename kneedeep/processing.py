@@ -1,21 +1,18 @@
 from skimage.exposure import equalize_adapthist
-from skimage.morphology import label
+from skimage.morphology import label, binary_dilation, disk
 from skimage.measure import regionprops
-from scipy.misc import imresize
+from skimage.transform import resize
 import numpy as np
 
 
-def apply_to_batch(inputs, func, **params):
+def apply_to_batch(inputs, func_name, **params):
 
     output = []
-    for input_data in zip(inputs):
+    func = postprocessors[func_name]
+    for input_data in zip(*inputs):
         result = func(*input_data, **params)
         output.append(result)
-    return np.asarray(output)
-
-
-def resize(img, new_size, mode='bilinear'):
-    return imresize(img, new_size, mode=mode)
+    return output
 
 
 def normalize(img, method='clahe'):
@@ -24,19 +21,22 @@ def normalize(img, method='clahe'):
     return func(img)
 
 
-def prediction_to_bounding_boxes(pred, thresh=0.5):
+def prediction_to_bounding_boxes(pred, no_boxes=2, dilation_factor=.02, thresh=0.5):
 
     # Threshold and label
-    label_image = label(pred > thresh)
+    dilate_pixels = max(pred.shape) * dilation_factor
+    label_image = label(binary_dilation(pred > thresh, disk(dilate_pixels)))
     props = sorted(regionprops(label_image), key=lambda x: x.area, reverse=True)
-    return [region.bbox for region in props[:2]]
+
+    no_boxes = min(len(props), no_boxes)
+    return [list(region.bbox) for region in sorted(props[:no_boxes], key=lambda x: x.bbox[0])]
 
 
 def crop_to_bounding_box(img, bboxes):
 
     cropped = []
-    for bbox in bboxes:
-        img_crop = img[bbox[0]:bbox[2], bbox[1]:bbox[3]]  # min_row, min_col, max_row, max_col
+    for min_row, min_col, max_row, max_col in bboxes:
+        img_crop = img[min_row:max_row, min_col:max_col]
         cropped.append(img_crop)
     return cropped
 
