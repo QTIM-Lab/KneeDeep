@@ -12,11 +12,12 @@ import sys
 
 
 class Annotator:
-    def __init__(self, search_pattern, file_suffix='_mask', ext='.tif', qc=False):
+    def __init__(self, search_pattern, bbox=2, file_suffix='_mask', ext='.tif', qc=False):
 
         self.search_pattern = search_pattern
         self.file_suffix = file_suffix
         self.qc = qc
+        self.bbox = bbox
 
         # Locate full paths to images and create output filenames
         self.input_imgs = [f for f in glob(search_pattern) if not f.endswith(file_suffix + ext)]  # ignore the masks
@@ -42,7 +43,11 @@ class Annotator:
                     continue
 
             print(input_img)
-            img_arr = dicom.read_file(input_img, force=True).pixel_array
+            try:
+                img_arr = dicom.read_file(input_img, force=True).pixel_array
+            except Exception:
+                img_arr = imread(input_img)
+
             self.current_mask = np.zeros(shape=img_arr.shape, dtype=np.uint8)
 
             self.fig, self.ax = plt.subplots(figsize=(18, 12))
@@ -76,14 +81,14 @@ class Annotator:
 
         old_mask = np.copy(self.current_mask)
 
-        if len(self.bounding_boxes) == 2:
+        if len(self.bounding_boxes) == self.bbox:
 
             for (x1, y1), (x2, y2) in self.bounding_boxes:
                 self.current_mask[y1:y2, x1:x2] = 255
 
             no_blobs = np.max(measure.label(self.current_mask))
 
-            if no_blobs != 2:
+            if no_blobs != self.bbox:
                 print("Invalid number of bounding boxes! Start over...")
                 self.current_mask = old_mask
                 self.bounding_boxes = []
@@ -105,3 +110,10 @@ class Annotator:
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
+
+
+if __name__ == '__main__':
+
+    import sys
+    ann = Annotator(sys.argv[1])
+    ann.annotate()
